@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import com.youngermaster.taxitrackingadminkotlin.data.mqtt.MqttRealClient
 import com.youngermaster.taxitrackingadminkotlin.ui.screens.MapScreen
 import com.youngermaster.taxitrackingadminkotlin.ui.theme.TaxiTrackingAdminKotlinTheme
+import com.google.android.gms.maps.MapsInitializer
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     
@@ -19,6 +21,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Inicializar Google Maps antes de usar BitmapDescriptorFactory
+        try {
+            MapsInitializer.initialize(applicationContext)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error inicializando Google Maps", e)
+        }
         
         // Inicializar cliente MQTT
         mqttClient = MqttRealClient(this)

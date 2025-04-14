@@ -3,6 +3,7 @@ package com.youngermaster.taxitrackingadminkotlin.ui.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -17,9 +18,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -28,19 +30,33 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.youngermaster.taxitrackingadminkotlin.R
 import com.youngermaster.taxitrackingadminkotlin.data.store.TaxiStore
 import com.youngermaster.taxitrackingadminkotlin.ui.components.LocationPermissionScreen
 import com.youngermaster.taxitrackingadminkotlin.ui.components.TaxiDetailsContent
-import com.youngermaster.taxitrackingadminkotlin.ui.components.UserLocationMap
 import com.youngermaster.taxitrackingadminkotlin.ui.components.getUserLocation
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import kotlinx.coroutines.launch
+import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen() {
-    var hasLocationPermission by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var hasLocationPermission by remember { mutableStateOf(false) }
+    
+    // Cargar el icono de taxi de forma segura
+    val taxiIcon = remember(context) {
+        safeLoadTaxiIcon(context)
+    }
     
     // Estado del bottom sheet
     val bottomSheetState = rememberStandardBottomSheetState(
@@ -88,14 +104,72 @@ fun MapScreen() {
                     }
                 )
             } else {
-                TaxiMapWithDrivers()
+                TaxiMapWithDrivers(taxiIcon)
             }
         }
     }
 }
 
+/**
+ * Carga de forma segura el icono del taxi, con manejo adecuado de errores
+ */
+fun safeLoadTaxiIcon(context: Context): BitmapDescriptor {
+    return try {
+        // Intenta cargar directamente desde el recurso y escalar
+        val drawable = ContextCompat.getDrawable(context, R.drawable.taxi_icon)
+        if (drawable != null) {
+            // Escalar a 40dp x 40dp (convertir dp a píxeles)
+            val density = context.resources.displayMetrics.density
+            val widthPx = (40 * density).toInt()
+            val heightPx = (40 * density).toInt()
+            
+            val scaledBitmap = Bitmap.createScaledBitmap(
+                drawable.toBitmap(),
+                widthPx,
+                heightPx,
+                true
+            )
+            BitmapDescriptorFactory.fromBitmap(scaledBitmap)
+        } else {
+            Log.e("MapScreen", "No se pudo cargar el drawable del taxi")
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+        }
+    } catch (e: Exception) {
+        Log.e("MapScreen", "Error cargando icono como recurso", e)
+        
+        try {
+            // Intenta cargar usando el drawable
+            val drawable = ContextCompat.getDrawable(context, R.drawable.taxi_icon)
+            if (drawable != null) {
+                getBitmapDescriptorFromDrawable(drawable, context)
+            } else {
+                // Fallback final si todo falla
+                Log.e("MapScreen", "No se pudo cargar el drawable", e)
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+            }
+        } catch (e2: Exception) {
+            Log.e("MapScreen", "Error en fallback del icono", e2)
+            // Último recurso - un marcador amarillo
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
+        }
+    }
+}
+
+/**
+ * Composable para mostrar una imagen del taxi
+ * Se puede usar en otros lugares de la UI donde no necesites un BitmapDescriptor
+ */
 @Composable
-fun TaxiMapWithDrivers() {
+fun TaxiIconImage() {
+    Image(
+        modifier = Modifier.size(24.dp),
+        painter = painterResource(id = R.drawable.taxi_icon),
+        contentDescription = "Icono de taxi que muestra la ubicación de un vehículo en el mapa"
+    )
+}
+
+@Composable
+fun TaxiMapWithDrivers(taxiIcon: BitmapDescriptor) {
     val context = LocalContext.current
     var userLocation by remember { mutableStateOf<LatLng?>(null) }
     var hasInitializedCamera by remember { mutableStateOf(false) }
@@ -107,7 +181,7 @@ fun TaxiMapWithDrivers() {
         position = CameraPosition.fromLatLngZoom(defaultLocation, 13f)
     }
 
-    // Obtener ubicación del usuario (similar a UserLocationMap pero integrado con marcadores de taxis)
+    // Obtener ubicación del usuario
     LaunchedEffect(key1 = true) {
         getUserLocation(context) { location ->
             val newLocation = LatLng(location.latitude, location.longitude)
@@ -139,7 +213,7 @@ fun TaxiMapWithDrivers() {
                 )
             }
             
-            // Markers para los taxis
+            // Markers para los taxis con icono personalizado
             TaxiStore.taxis.forEach { (driverId, taxi) ->
                 val taxiLocation = LatLng(
                     taxi.driverLocation.latitude,
@@ -150,7 +224,7 @@ fun TaxiMapWithDrivers() {
                     state = MarkerState(position = taxiLocation),
                     title = taxi.driverName,
                     snippet = taxi.vehicleNumberId,
-                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW),
+                    icon = taxiIcon,
                     onClick = {
                         TaxiStore.selectTaxi(driverId)
                         true
@@ -159,4 +233,30 @@ fun TaxiMapWithDrivers() {
             }
         }
     }
+}
+
+/**
+ * Función para convertir un drawable en un BitmapDescriptor que puede ser usado como icono de marcador
+ * Escala el icono a 40dp x 40dp por defecto
+ */
+private fun getBitmapDescriptorFromDrawable(
+    drawable: Drawable, 
+    context: Context,
+    widthDp: Int = 40, 
+    heightDp: Int = 40
+): BitmapDescriptor {
+    // Convertir dp a píxeles
+    val density = context.resources.displayMetrics.density
+    val widthPx = (widthDp * density).toInt()
+    val heightPx = (heightDp * density).toInt()
+    
+    // Crear un bitmap del tamaño deseado
+    val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    
+    // Escalar el drawable para que llene el bitmap
+    drawable.setBounds(0, 0, canvas.width, canvas.height)
+    drawable.draw(canvas)
+    
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
 } 
