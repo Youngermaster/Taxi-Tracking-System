@@ -16,13 +16,13 @@ fun MapScreen() {
     var hasLocationPermission by remember { mutableStateOf(false) }
     
     Box(modifier = Modifier.fillMaxSize()) {
-        LocationPermissionScreen(
-            onPermissionGranted = {
-                hasLocationPermission = true
-            }
-        )
-        
-        if (hasLocationPermission) {
+        if (!hasLocationPermission) {
+            LocationPermissionScreen(
+                onPermissionGranted = {
+                    hasLocationPermission = true
+                }
+            )
+        } else {
             UserLocationMap()
         }
     }

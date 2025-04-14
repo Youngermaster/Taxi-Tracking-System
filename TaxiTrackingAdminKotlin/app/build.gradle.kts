@@ -50,6 +50,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     
+    // Material icons
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
+    
     // Google Maps
     implementation("com.google.maps.android:maps-compose:2.15.0")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
