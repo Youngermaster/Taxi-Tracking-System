@@ -225,7 +225,7 @@ fun UserLocationMap() {
     }
 }
 
-private fun getUserLocation(context: Context, onLocationReceived: (Location) -> Unit) {
+internal fun getUserLocation(context: Context, onLocationReceived: (Location) -> Unit) {
     try {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         
